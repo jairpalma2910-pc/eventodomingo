@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Salón Roma · Acomodo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una sola pantalla — escena 3D a todo el fondo, barra de vistas arriba, ficha técnica flotante abajo */
+:root{
+  --bg:#14100f; --panel:rgba(28,21,20,.86); --line:rgba(255,236,228,.14);
+  --fg:#f6ece6; --muted:#b9a9a2; --accent:#c8323c; --ok:#5fbf8f; --warn:#e8a33d;
+  --display:"Archivo",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--display);overflow:hidden}
+#scene{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none}
+.top{position:fixed;left:0;right:0;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));padding-bottom:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:linear-gradient(var(--bg),rgba(20,16,15,0))}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+.brand b{font-weight:800;font-size:18px;letter-spacing:.02em}
+.brand span{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.views{display:flex;flex-wrap:wrap;gap:6px}
+.views button,.tog{font:600 13px var(--display);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 13px;cursor:pointer;backdrop-filter:blur(6px)}
+.views button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.card{position:fixed;z-index:5;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  width:min(340px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;backdrop-filter:blur(8px);display:grid;gap:10px}
+.card[data-collapsed="true"] .body{display:none}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.total{font-weight:800;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.total small{font:500 12px var(--mono);color:var(--muted);margin-left:6px}
+.tog{padding:5px 10px;font-size:12px}
+.blocks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.blk{border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.blk b{display:block;font:700 15px var(--display);color:var(--fg);font-variant-numeric:tabular-nums}
+.body{display:grid;gap:10px}
+.fit{font-family:var(--mono);font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid var(--line)}
+.fit[data-state="ok"]{border-color:var(--ok);color:var(--ok)}
+.fit[data-state="tight"]{border-color:var(--warn);color:var(--warn)}
+.fit[data-state="bad"]{border-color:var(--accent);color:#ff8a8f}
+label.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:12px;color:var(--muted)}
+label.row output{font-family:var(--mono);color:var(--fg);font-variant-numeric:tabular-nums}
+label.row input{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.note{font-size:11px;color:var(--muted);line-height:1.4}
+.steps{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.step{display:grid;gap:4px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.step span{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.step div{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.step button{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--fg);font:700 20px var(--display);cursor:pointer;touch-action:manipulation;line-height:1}
+.step button:active{background:var(--accent);border-color:var(--accent)}
+.step b{font:800 22px var(--display);font-variant-numeric:tabular-nums}
+input[type=range]{height:30px}
+@media (max-width:700px){
+  .top{flex-direction:column;align-items:stretch;gap:8px}
+  .brand b{font-size:15px}
+  .views{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .views::-webkit-scrollbar{display:none}
+  .views button{flex:0 0 auto;padding:10px 15px}
+  .card{left:0;right:0;width:auto;bottom:0;border-radius:18px 18px 0 0;border-bottom:0;
+    padding-top:12px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+    max-height:64vh;overflow-y:auto;overscroll-behavior:contain}
+  .tog{padding:9px 16px;font-size:14px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>*{box-sizing:border-box}body{margin:0}</style>
+</head>
+<body>
+
+<canvas id="scene" aria-label="Simulación 3D del acomodo de sillas en el Salón Roma"></canvas>
+
+<header class="top">
+  <div class="brand"><b>Salón Roma · Nápoles + Venecia</b><span>Real Inn Tijuana · acomodo auditorio</span></div>
+  <nav class="views" aria-label="Vistas">
+    <button id="v-iso" aria-pressed="true">3D</button>
+    <button id="v-top" aria-pressed="false">Plano</button>
+    <button id="v-pres" aria-pressed="false">Desde presidencia</button>
+    <button id="v-back" aria-pressed="false">Desde la entrada</button>
+  </nav>
+</header>
+
+<section class="card" id="card" data-collapsed="false">
+  <div class="head">
+    <div class="total"><span id="tot">390</span><small>sillas público</small></div>
+    <button class="tog" id="tog" aria-expanded="true">Ocultar</button>
+  </div>
+  <div class="body">
+    <div class="steps">
+      <div class="step"><span>Columnas izquierda</span><div><button data-k="0" data-d="-1" aria-label="Quitar columna izquierda">−</button><b id="n0">15</b><button data-k="0" data-d="1" aria-label="Agregar columna izquierda">+</button></div></div>
+      <div class="step"><span>Columnas centro</span><div><button data-k="1" data-d="-1" aria-label="Quitar columna centro">−</button><b id="n1">15</b><button data-k="1" data-d="1" aria-label="Agregar columna centro">+</button></div></div>
+      <div class="step"><span>Columnas derecha</span><div><button data-k="2" data-d="-1" aria-label="Quitar columna derecha">−</button><b id="n2">9</b><button data-k="2" data-d="1" aria-label="Agregar columna derecha">+</button></div></div>
+      <div class="step"><span>Filas hacia atrás</span><div><button data-k="r" data-d="-1" aria-label="Quitar fila">−</button><b id="nr">10</b><button data-k="r" data-d="1" aria-label="Agregar fila">+</button></div></div>
+    </div>
+    <div class="fit" id="fit" data-state="ok">—</div>
+    <label class="row" for="s-pitch">Ancho por silla <output id="o-pitch"></output><input id="s-pitch" type="range" min="0.44" max="0.56" step="0.01" value="0.48"></label>
+    <label class="row" for="s-aisle">Pasillos <output id="o-aisle"></output><input id="s-aisle" type="range" min="0.8" max="1.8" step="0.05" value="1.0"></label>
+    <label class="row" for="s-row">Distancia entre filas <output id="o-row"></output><input id="s-row" type="range" min="0.8" max="1.1" step="0.05" value="0.9"></label>
+    <p class="note">Medidas del plano del hotel: 21.34 m de ancho (10.48 + 10.86) × 14.6 m de fondo. Arrastra para girar, pellizca o usa la rueda para acercar.</p>
+  </div>
+</section>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// ---- Medidas del salón (m) ----
+const W = 10.48 + 10.86;          // ancho Nápoles + Venecia
+const D = 14.625;                 // fondo
+const H = 3.2;                    // altura (aprox.)
+const FRONT = D/2;                // pared de las puertas (lado presidencia)
+const SPLIT_X = -W/2 + 10.48;     // unión entre Nápoles y Venecia
+const BLOCKS = [15,15,9];         // izquierda → derecha viendo el plano con la presidencia abajo
+let ROWS = 10;
+
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#14100f');
+const camera = new THREE.PerspectiveCamera(45, 1, 0.3, 120);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495; controls.minDistance = 2; controls.maxDistance = 60;
+
+// Luces
+scene.add(new THREE.HemisphereLight('#fff3e0','#4a4038',1.1));
+const sun = new THREE.DirectionalLight('#fff0dc',1.2);
+sun.position.set(-8,16,10); sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.bias=-0.0008; sun.shadow.normalBias=0.03;
+Object.assign(sun.shadow.camera,{left:-14,right:14,top:12,bottom:-12,near:1,far:50});
+scene.add(sun);
+
+// ---- Salón ----
+function carpetTexture(){
+  // Alfombra del salón: fondo café-gris, espirales beige y círculos azules
+  const S=512,c=document.createElement('canvas');c.width=c.height=S;const g=c.getContext('2d');
+  g.fillStyle='#75685f';g.fillRect(0,0,S,S);
+  for(let k=0;k<60;k++){const gr=g.createRadialGradient(0,0,0,0,0,1);gr.addColorStop(0,'rgba(45,36,30,.22)');gr.addColorStop(1,'rgba(45,36,30,0)');const x=Math.random()*S,y=Math.random()*S,r=20+Math.random()*60;g.save();g.translate(x,y);g.scale(r,r);g.fillStyle=gr;g.fillRect(-1,-1,2,2);g.restore();}
+  for(let k=0;k<2500;k++){g.fillStyle=`rgba(${Math.random()<.5?'30,24,20':'150,135,120'},${Math.random()*.12})`;g.fillRect(Math.random()*S,Math.random()*S,3,3);}
+  const R=(a,b)=>a+Math.random()*(b-a);
+  const wrap=(fn)=>{for(const dx of[-S,0,S])for(const dy of[-S,0,S]){g.save();g.translate(dx,dy);fn();g.restore();}};
+  for(let k=0;k<26;k++){const x=R(0,S),y=R(0,S),r=R(14,30);wrap(()=>{
+    g.fillStyle='#5b7aa0';g.beginPath();g.arc(x,y,r,0,7);g.fill();
+    g.fillStyle='rgba(40,60,95,.55)';g.beginPath();g.arc(x+r*.2,y+r*.2,r*.6,0,7);g.fill();
+    g.strokeStyle='rgba(222,203,165,.8)';g.lineWidth=2.5;g.beginPath();g.arc(x,y,r+3,0,7);g.stroke();});}
+  g.lineCap='round';
+  for(let k=0;k<34;k++){const x=R(0,S),y=R(0,S),r=R(20,80),a=R(0,6),sw=R(2.5,6);wrap(()=>{
+    g.strokeStyle='rgba(222,203,165,.72)';g.lineWidth=R(1.5,3);g.beginPath();g.arc(x,y,r,a,a+sw);g.stroke();});}
+  for(let k=0;k<40;k++){const x=R(0,S),y=R(0,S),r=R(4,10);wrap(()=>{g.strokeStyle='rgba(222,203,165,.75)';g.lineWidth=2;g.beginPath();g.arc(x,y,r,0,7);g.stroke();});}
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(W/3.2,D/3.2);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t;
+}
+function partitionTexture(){
+  // Muro móvil gris oscuro con paneles verticales
+  const c=document.createElement('canvas');c.width=512;c.height=64;const g=c.getContext('2d');
+  g.fillStyle='#2f2e30';g.fillRect(0,0,512,64);
+  g.fillStyle='#8e8a86';for(let x=0;x<512;x+=48)g.fillRect(x,0,2,64);
+  const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.repeat.set(D/5.1,1);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(W,D), new THREE.MeshStandardMaterial({map:carpetTexture(),roughness:.95}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+
+// Paredes: caja con caras interiores (desde fuera se ve el interior)
+const walls = new THREE.Mesh(new THREE.BoxGeometry(W,H,D), new THREE.MeshStandardMaterial({color:'#e3dccf',side:THREE.BackSide,roughness:.95}));
+walls.position.y=H/2-0.03; walls.receiveShadow=true; scene.add(walls);
+// Lambrín gris oscuro (como en las fotos) en paredes frontal, trasera e izquierda
+const wainMat=new THREE.MeshStandardMaterial({color:'#3d3d40',roughness:.6});
+[[0,FRONT-0.02,W,0.02],[0,-D/2+0.02,W,0.02],[-W/2+0.02,0,0.02,D]].forEach(([x,z,w,d])=>{
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,1.0,d),wainMat);m.position.set(x,0.5,z);scene.add(m);});
+// Muro móvil (lado de Verona / Milán)
+const part=new THREE.Mesh(new THREE.PlaneGeometry(D,H),new THREE.MeshStandardMaterial({map:partitionTexture(),roughness:.8}));
+part.rotation.y=-Math.PI/2;part.position.set(W/2-0.03,H/2,0);scene.add(part);
+// Plafones con luces empotradas
+const lampMat=new THREE.MeshBasicMaterial({color:'#fff6e5'});
+const lampGeo=new THREE.CircleGeometry(0.11,16);
+for(let i=-3;i<=3;i++)for(let j=-2;j<=2;j++){const l=new THREE.Mesh(lampGeo,lampMat);l.rotation.x=Math.PI/2;l.position.set(i*2.9,H-0.01,j*2.8);scene.add(l);}
+// Zoclo
+const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W,0.02,D)), new THREE.LineBasicMaterial({color:'#2a1d19'}));
+edge.position.y=0.01; scene.add(edge);
+// Unión de los dos salones (muro móvil abierto)
+const seam = new THREE.Mesh(new THREE.PlaneGeometry(0.06,D), new THREE.MeshBasicMaterial({color:'#b89a6c'}));
+seam.rotation.x=-Math.PI/2; seam.position.set(SPLIT_X,0.015,0); scene.add(seam);
+
+// Puertas (pared frontal) según plano
+const doorMat = new THREE.MeshStandardMaterial({color:'#2c2c2f',roughness:.5});
+const handleMat = new THREE.MeshStandardMaterial({color:'#b9b6b0',metalness:.8,roughness:.3});
+function door(x,z,w,face,main){
+  const d=new THREE.Mesh(new THREE.BoxGeometry(w,2.5,0.06),doorMat); d.position.set(x,1.25,z); scene.add(d);
+  for(const s of[-1,1]){const h=new THREE.Mesh(new THREE.BoxGeometry(0.03,1.1,0.03),handleMat);h.position.set(x+s*0.12,1.15,z-face*0.05);scene.add(h);}
+  if(main){const f=new THREE.Mesh(new THREE.BoxGeometry(w+0.25,2.65,0.04),new THREE.MeshStandardMaterial({color:'#c8323c'}));f.position.set(x,1.32,z+face*0.01);scene.add(f);d.position.z-=face*0.02;}
+}
+// Pared de la presidencia (puertas secundarias)
+door(-W/2+0.81+1.24,FRONT-0.04,2.2,1);
+door(W/2-0.2-1.1,FRONT-0.04,2.2,1);
+// Pared del foyer (atrás): entrada principal en Nápoles y otra en Venecia
+const MAIN_X=-W/2+8.0;
+door(MAIN_X,-D/2+0.04,2.18,-1,true);
+door(-W/2+15.8,-D/2+0.04,2.24,-1);
+
+// Texto como sprite
+function label(text,{size=0.6,color='#f6ece6',bg='rgba(20,16,15,.75)'}={}){
+  const c=document.createElement('canvas');const g=c.getContext('2d');const fs=64;
+  g.font=`800 ${fs}px Archivo, system-ui, sans-serif`;const w=Math.ceil(g.measureText(text).width)+48;
+  c.width=w;c.height=fs+36;g.font=`800 ${fs}px Archivo, system-ui, sans-serif`;
+  g.fillStyle=bg;g.beginPath();g.roundRect(0,0,c.width,c.height,22);g.fill();
+  g.fillStyle=color;g.textBaseline='middle';g.fillText(text,24,c.height/2+4);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false}));
+  s.scale.set(size*c.width/c.height,size,1);s.renderOrder=10;return s;
+}
+
+// ---- Presidencia ----
+const pres = new THREE.Group(); scene.add(pres);
+const PRES_W=7.2, PRES_D=2.4, PRES_Z=FRONT-0.4-PRES_D/2;
+const dais=new THREE.Mesh(new THREE.BoxGeometry(PRES_W,0.3,PRES_D),new THREE.MeshStandardMaterial({color:'#2b2321',roughness:.7}));
+dais.position.set(0,0.15,PRES_Z);dais.castShadow=dais.receiveShadow=true;pres.add(dais);
+const table=new THREE.Mesh(new THREE.BoxGeometry(5.6,0.76,0.75),new THREE.MeshStandardMaterial({color:'#f4efe8',roughness:.8}));
+table.position.set(0,0.3+0.38,PRES_Z-0.35);table.castShadow=true;pres.add(table);
+const skirt=new THREE.Mesh(new THREE.BoxGeometry(5.62,0.7,0.02),new THREE.MeshStandardMaterial({color:'#8c1d2c',roughness:.8}));
+skirt.position.set(0,0.3+0.36,PRES_Z-0.73);pres.add(skirt);
+const backdrop=new THREE.Mesh(new THREE.BoxGeometry(PRES_W,2.6,0.05),new THREE.MeshStandardMaterial({color:'#8c1d2c',roughness:.85}));
+backdrop.position.set(0,1.3+0.3,FRONT-0.08);pres.add(backdrop);
+const presLbl=label('PRESIDENCIA',{size:0.55,bg:'rgba(140,29,44,.9)'});presLbl.position.set(0,2.15,PRES_Z);scene.add(presLbl);
+const mainLbl=label('ENTRADA PRINCIPAL',{size:0.45,bg:'rgba(200,50,60,.92)'});mainLbl.position.set(MAIN_X,2.95,-D/2+0.4);scene.add(mainLbl);
+
+// ---- Silla (geometrías base) ----
+// Silla de banquete con funda blanca (como en las fotos)
+const chairMat=new THREE.MeshStandardMaterial({color:'#efeeea',roughness:.85});
+function chairGeometry(){
+  // Funda de licra: falda que abre un poco hacia el piso, cojín, respaldo alto con remate redondo e inclinado
+  const skirt=new THREE.CylinderGeometry(0.40/Math.SQRT2,0.47/Math.SQRT2,0.45,4,1,true);
+  skirt.rotateY(Math.PI/4); skirt.translate(0,0.225,0);
+  const seat=new THREE.BoxGeometry(0.42,0.05,0.42); seat.translate(0,0.468,0.005);
+  const w=0.2,h=0.33,sh=new THREE.Shape();
+  sh.moveTo(-w,0); sh.lineTo(-w,h); sh.absarc(0,h,w,Math.PI,0,true); sh.lineTo(w,0); sh.lineTo(-w,0);
+  const back=new THREE.ExtrudeGeometry(sh,{depth:0.045,bevelEnabled:true,bevelThickness:0.018,bevelSize:0.014,bevelSegments:3,curveSegments:20});
+  back.translate(0,0,-0.022); back.rotateX(-0.13); back.translate(0,0.47,-0.185);
+  return mergeGeometries([skirt.toNonIndexed(),seat.toNonIndexed(),back]);
+}
+const CHAIR_GEO=chairGeometry();
+
+let chairGroup=null, blockLabels=[];
+function buildChairs(){
+  if(chairGroup){scene.remove(chairGroup);chairGroup.children.forEach(m=>m.dispose?.());}
+  blockLabels.forEach(l=>scene.remove(l));blockLabels=[];
+  const pitch=+document.getElementById('s-pitch').value;
+  const aisle=+document.getElementById('s-aisle').value;
+  const rowGap=+document.getElementById('s-row').value;
+  const totalCols=BLOCKS.reduce((a,b)=>a+b,0);
+  const usedW=totalCols*pitch+aisle*(BLOCKS.length-1);
+  const firstRowZ=PRES_Z-PRES_D/2-2.0;     // 2 m libres frente a la presidencia
+  const positions=[];
+  let x=-usedW/2+pitch/2;
+  BLOCKS.forEach((n,bi)=>{
+    const x0=x;
+    for(let c=0;c<n;c++){for(let r=0;r<ROWS;r++)positions.push([x+c*pitch,firstRowZ-r*rowGap]);}
+    const cx=x0+(n-1)*pitch/2;
+    if(n>0){const l=label(`${n} × ${ROWS}`,{size:0.42});l.position.set(cx,1.6,firstRowZ-(ROWS-1)*rowGap/2);scene.add(l);blockLabels.push(l);}
+    x+=n*pitch+aisle;
+  });
+  const N=positions.length;
+  chairGroup=new THREE.Group();
+  const chairs=new THREE.InstancedMesh(CHAIR_GEO,chairMat,N+7);
+  chairs.castShadow=chairs.receiveShadow=true; chairGroup.add(chairs);
+  const m=new THREE.Matrix4(),s=new THREE.Vector3(1,1,1),v=new THREE.Vector3();
+  const qF=new THREE.Quaternion(),qB=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI);
+  function place(i,px,pz,base,face){ // face=+1 mira hacia presidencia (+z), -1 mira al público
+    v.set(px,base,pz);m.compose(v,face>0?qF:qB,s);chairs.setMatrixAt(i,m);
+  }
+  positions.forEach(([px,pz],i)=>place(i,px,pz,0,1));
+  for(let k=0;k<7;k++)place(N+k,-2.4+k*0.8,PRES_Z+0.35,0.3,-1);
+  chairGroup.add(new THREE.Object3D());
+  scene.add(chairGroup);
+
+  // Ficha
+  document.getElementById('tot').textContent=N;
+  document.getElementById('o-pitch').textContent=`${Math.round(pitch*100)} cm`;
+  document.getElementById('o-aisle').textContent=`${aisle.toFixed(2)} m`;
+  document.getElementById('o-row').textContent=`${rowGap.toFixed(2)} m`;
+  const side=(W-usedW)/2;
+  const lastZ=firstRowZ-(ROWS-1)*rowGap; const backFree=lastZ-0.3+D/2;
+  const fit=document.getElementById('fit');
+  if(side<0){fit.dataset.state='bad';fit.textContent=`No cabe: ocupa ${usedW.toFixed(2)} m de ${W.toFixed(2)} m de ancho`;}
+  else if(side<0.6){fit.dataset.state='tight';fit.textContent=`Cabe justo: ${usedW.toFixed(2)} m · quedan ${side.toFixed(2)} m por lado · ${backFree.toFixed(1)} m libres atrás`;}
+  else{fit.dataset.state='ok';fit.textContent=`Cabe: ${usedW.toFixed(2)} m · quedan ${side.toFixed(2)} m por lado · ${backFree.toFixed(1)} m libres atrás`;}
+}
+['s-pitch','s-aisle','s-row'].forEach(id=>document.getElementById(id).addEventListener('input',buildChairs));
+document.querySelectorAll('.step button').forEach(b=>b.addEventListener('click',()=>{
+  const k=b.dataset.k,d=+b.dataset.d;
+  if(k==='r'){ROWS=Math.max(1,Math.min(16,ROWS+d));document.getElementById('nr').textContent=ROWS;}
+  else{BLOCKS[k]=Math.max(0,Math.min(25,BLOCKS[k]+d));document.getElementById('n'+k).textContent=BLOCKS[k];}
+  buildChairs();
+}));
+buildChairs();
+
+// ---- Vistas ----
+const VIEWS={
+  'v-iso':{p:[15,14,-17],t:[0,0,0]},
+  'v-top':{p:[0,30,0.01],t:[0,0,0]},
+  'v-pres':{p:[0,1.75,PRES_Z+0.2],t:[0,1.0,-5]},
+  'v-back':{p:[MAIN_X,1.7,-D/2+0.7],t:[0,1.0,PRES_Z]}
+};
+let anim=null;
+function go(id,instant){
+  document.querySelectorAll('.views button').forEach(b=>b.setAttribute('aria-pressed',b.id===id));
+  const v=VIEWS[id];const fromP=camera.position.clone(),fromT=controls.target.clone();
+  const toP=new THREE.Vector3(...v.p),toT=new THREE.Vector3(...v.t);
+  if(instant||matchMedia('(prefers-reduced-motion: reduce)').matches){camera.position.copy(toP);controls.target.copy(toT);return;}
+  const t0=performance.now();anim=(now)=>{const k=Math.min(1,(now-t0)/900);const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    camera.position.lerpVectors(fromP,toP,e);controls.target.lerpVectors(fromT,toT,e);if(k>=1)anim=null;};
+}
+Object.keys(VIEWS).forEach(id=>document.getElementById(id).addEventListener('click',()=>go(id)));
+go('v-iso',true);
+
+// Ficha plegable
+const card=document.getElementById('card'),tog=document.getElementById('tog');
+tog.addEventListener('click',()=>{const c=card.dataset.collapsed!=='true';card.dataset.collapsed=c;tog.textContent=c?'Editar':'Ocultar';tog.setAttribute('aria-expanded',!c);});
+if(innerWidth<700){card.dataset.collapsed='true';tog.textContent='Editar';tog.setAttribute('aria-expanded','false');}
+
+function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.fov=w/h<0.8?64:45;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+renderer.setAnimationLoop((now)=>{if(anim)anim(now);controls.update();renderer.render(scene,camera);});
+</script>
+
+</body>
+</html>
