@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Salón Roma · Acomodo</title>
+<title>Salón Roma · Acomodo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -27,6 +28,8 @@ body{background:var(--bg);color:var(--fg);font-family:var(--display);overflow:hi
 .views{display:flex;flex-wrap:wrap;gap:6px}
 .views button,.tog{font:600 13px var(--display);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 13px;cursor:pointer;backdrop-filter:blur(6px)}
 .views button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent)}
+.views .ppl{border-style:dashed}
+.views .ppl[aria-pressed="true"]{background:#2f6b4f;border-color:#3f9a6f;border-style:solid}
 button:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .card{position:fixed;z-index:5;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));
   width:min(340px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;backdrop-filter:blur(8px);display:grid;gap:10px}
@@ -82,6 +85,7 @@ input[type=range]{height:30px}
     <button id="v-top" aria-pressed="false">Plano</button>
     <button id="v-pres" aria-pressed="false">Desde presidencia</button>
     <button id="v-back" aria-pressed="false">Desde la entrada</button>
+    <button id="ppl" class="ppl" aria-pressed="false">👤 Personas: no</button>
   </nav>
 </header>
 
@@ -252,6 +256,33 @@ function chairGeometry(){
 }
 const CHAIR_GEO=chairGeometry();
 
+// ---- Personas sentadas (mirando hacia +z, sobre la silla) ----
+const B=(w,h,d,x,y,z)=>new THREE.BoxGeometry(w,h,d).translate(x,y,z).toNonIndexed();
+function personGeos(){
+  const torso=new THREE.CapsuleGeometry(0.13,0.26,4,10);torso.scale(1.3,1,0.8);torso.rotateX(-0.08);torso.translate(0,0.80,-0.09);
+  const shirt=mergeGeometries([torso.toNonIndexed(),
+    B(0.09,0.30,0.10,-0.215,0.84,-0.08),B(0.09,0.30,0.10,0.215,0.84,-0.08),   // brazos
+    B(0.08,0.08,0.30,-0.19,0.66,0.06),B(0.08,0.08,0.30,0.19,0.66,0.06)]);    // antebrazos sobre las piernas
+  const pants=mergeGeometries([
+    B(0.15,0.14,0.44,-0.09,0.565,0.08),B(0.15,0.14,0.44,0.09,0.565,0.08),    // muslos
+    B(0.12,0.50,0.12,-0.09,0.27,0.27),B(0.12,0.50,0.12,0.09,0.27,0.27),      // piernas
+    B(0.11,0.06,0.22,-0.09,0.03,0.32),B(0.11,0.06,0.22,0.09,0.03,0.32)]);    // zapatos
+  const head=new THREE.SphereGeometry(0.1,16,12);head.scale(0.9,1.08,1);head.translate(0,1.2,-0.07);
+  const neck=new THREE.CylinderGeometry(0.045,0.05,0.1,10);neck.translate(0,1.07,-0.08);
+  const skin=mergeGeometries([head.toNonIndexed(),neck.toNonIndexed(),
+    B(0.07,0.05,0.09,-0.19,0.66,0.25),B(0.07,0.05,0.09,0.19,0.66,0.25)]);    // manos
+  const hair=new THREE.SphereGeometry(0.104,16,10,0,Math.PI*2,0,Math.PI*0.52);hair.scale(0.92,1.08,1.04);hair.translate(0,1.215,-0.085);
+  return {shirt,pants,skin,hair:hair.toNonIndexed()};
+}
+const PG=personGeos();
+const pMat=new THREE.MeshStandardMaterial({roughness:.8});
+const hash=(i,k)=>{const x=Math.sin(i*127.1+k*311.7)*43758.5453;return x-Math.floor(x);};
+const SHIRTS=['#f2f2f2','#1f2a44','#8c1d2c','#3b6ea5','#2f2f33','#c9b79c','#5a7d5a','#d98c3f','#6b4a7a','#e8d9c4','#a33b3b','#4e5d6c'];
+const PANTS=['#1d2230','#2b2b2e','#3a3f4a','#5b4a3a','#1e3a5f','#c2b49a'];
+const SKINS=['#e9c3a0','#d6a77f','#c18b62','#a8724c','#8a5a3b','#f0d2b4'];
+const HAIRS=['#1a1412','#2b1d16','#4a3020','#6b4a2e','#2a2a2a','#9a8f86'];
+let showPeople=false;
+
 let chairGroup=null, blockLabels=[];
 function buildChairs(){
   if(chairGroup){scene.remove(chairGroup);chairGroup.children.forEach(m=>m.dispose?.());}
@@ -282,7 +313,13 @@ function buildChairs(){
   }
   positions.forEach(([px,pz],i)=>place(i,px,pz,0,1));
   for(let k=0;k<7;k++)place(N+k,-2.4+k*0.8,PRES_Z+0.35,0.3,-1);
-  chairGroup.add(new THREE.Object3D());
+  if(showPeople){
+    const total=N+7, c=new THREE.Color();
+    const parts=[['shirt',SHIRTS,1],['pants',PANTS,2],['skin',SKINS,3],['hair',HAIRS,4]].map(([g,pal,k])=>{
+      const im=new THREE.InstancedMesh(PG[g],pMat,total);
+      for(let i=0;i<total;i++){chairs.getMatrixAt(i,m);im.setMatrixAt(i,m);im.setColorAt(i,c.set(pal[Math.floor(hash(i,k)*pal.length)]));}
+      chairGroup.add(im);return im;});
+  }
   scene.add(chairGroup);
 
   // Ficha
@@ -305,6 +342,8 @@ document.querySelectorAll('.step button').forEach(b=>b.addEventListener('click',
   buildChairs();
 }));
 buildChairs();
+const pplBtn=document.getElementById('ppl');
+pplBtn.addEventListener('click',()=>{showPeople=!showPeople;pplBtn.setAttribute('aria-pressed',showPeople);pplBtn.textContent=showPeople?'👤 Personas: sí':'👤 Personas: no';buildChairs();});
 
 // ---- Vistas ----
 const VIEWS={
@@ -315,7 +354,7 @@ const VIEWS={
 };
 let anim=null;
 function go(id,instant){
-  document.querySelectorAll('.views button').forEach(b=>b.setAttribute('aria-pressed',b.id===id));
+  document.querySelectorAll('.views button:not(.ppl)').forEach(b=>b.setAttribute('aria-pressed',b.id===id));
   const v=VIEWS[id];const fromP=camera.position.clone(),fromT=controls.target.clone();
   const toP=new THREE.Vector3(...v.p),toT=new THREE.Vector3(...v.t);
   if(instant||matchMedia('(prefers-reduced-motion: reduce)').matches){camera.position.copy(toP);controls.target.copy(toT);return;}
